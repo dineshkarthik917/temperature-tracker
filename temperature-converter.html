@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Temperature Converter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  @property --hue { syntax: '<number>'; inherits: true; initial-value: 200; }
+  :root {
+    --bg: #eef3f6; --card: #ffffff; --ink: #14232e; --muted: #5a6b78;
+    --line: #cdd8df; --accent: #2b6fb5; --accent-ink: #ffffff;
+    --err: #b3321b; --err-bg: #fbeae6; --warm: #d8512f;
+    --l1: 80%; --l2: 92%; --edge: rgba(20,35,46,.35); --glass: rgba(255,255,255,.18);
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1a22; --card: #17252f; --ink: #e8f0f5; --muted: #9bb0bf;
+      --line: #2c4050; --accent: #5aa2e6; --accent-ink: #0b1620;
+      --err: #ff9a85; --err-bg: #3a1f1a; --warm: #ff8a66; --l1: 16%; --l2: 26%; --edge: rgba(255,255,255,.4); --glass: rgba(255,255,255,.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1a22; --card: #17252f; --ink: #e8f0f5; --muted: #9bb0bf;
+    --line: #2c4050; --accent: #5aa2e6; --accent-ink: #0b1620;
+    --err: #ff9a85; --err-bg: #3a1f1a; --warm: #ff8a66; --l1: 16%; --l2: 26%; --edge: rgba(255,255,255,.4); --glass: rgba(255,255,255,.06);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; min-height: 100vh; color: var(--ink);
+    background: linear-gradient(135deg, hsl(var(--hue) 70% var(--l1)), hsl(calc(var(--hue) + 35) 75% var(--l2)));
+    transition: --hue 1.2s ease; --hue: 200;
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+  }
+  main {
+    width: 100%; max-width: 460px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px;
+  }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; text-align: center; }
+  .sub { margin: 0 0 24px; color: var(--muted); text-align: center; font-size: 0.95rem; }
+  label, legend { display: block; font-weight: 500; font-size: 0.95rem; margin-bottom: 8px; padding: 0; }
+  input[type="text"] {
+    width: 100%; font: inherit; font-size: 1.25rem; padding: 12px 14px;
+    background: var(--bg); color: var(--ink); border: 2px solid var(--line); border-radius: 8px;
+  }
+  input[type="text"][aria-invalid="true"] { border-color: var(--err); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .error {
+    min-height: 1.4em; margin: 8px 0 0; color: var(--err); font-size: 0.9rem;
+  }
+  .error.show { background: var(--err-bg); padding: 8px 10px; border-radius: 6px; }
+  fieldset { border: 0; margin: 18px 0 0; padding: 0; }
+  .units { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .units input { position: absolute; opacity: 0; pointer-events: none; }
+  .units label {
+    margin: 0; text-align: center; padding: 10px 6px; border: 2px solid var(--line);
+    border-radius: 8px; cursor: pointer; font-weight: 500;
+  }
+  .units input:checked + label { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .units input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button {
+    width: 100%; margin-top: 20px; font: inherit; font-weight: 600; font-size: 1.05rem;
+    padding: 13px; border: 0; border-radius: 8px; background: var(--ink); color: var(--bg); cursor: pointer;
+  }
+  button:hover { filter: brightness(1.15); }
+  .results { margin-top: 24px; border-top: 1px solid var(--line); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .row .name { color: var(--muted); }
+  .row .val { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 1.5rem; }
+  .row.input .val { color: var(--warm); }
+  .empty { color: var(--muted); padding: 16px 0 0; text-align: center; }
+
+  main { position: relative; z-index: 1; box-shadow: 0 20px 50px rgba(0,0,0,.18); }
+  .scene { position: fixed; inset: 0; perspective: 900px; overflow: hidden; pointer-events: none; z-index: 0; }
+  .drift { position: absolute; animation: drift var(--t) ease-in-out infinite alternate; }
+  .cube { position: relative; width: var(--s); height: var(--s); transform-style: preserve-3d; animation: spin var(--r) linear infinite; }
+  .face { position: absolute; inset: 0; border: 2px solid var(--edge); background: var(--glass); }
+  .face:nth-child(1) { transform: translateZ(calc(var(--s) / 2)); }
+  .face:nth-child(2) { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
+  .face:nth-child(3) { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); }
+  .face:nth-child(4) { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
+  .face:nth-child(5) { transform: rotateX(90deg) translateZ(calc(var(--s) / 2)); }
+  .face:nth-child(6) { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
+  @keyframes spin { to { transform: rotateX(360deg) rotateY(360deg); } }
+  @keyframes drift { from { transform: translate3d(0, -30px, 0); } to { transform: translate3d(30px, 40px, 120px); } }
+  @media (prefers-reduced-motion: reduce) { .drift, .cube { animation: none; } }
+</style>
+</head>
+<body>
+<div class="scene" id="scene" aria-hidden="true"></div>
+<main>
+  <h1>Temperature Converter</h1>
+  <p class="sub">Convert between Celsius, Fahrenheit and Kelvin.</p>
+
+  <form id="form" novalidate>
+    <label for="temp">Temperature</label>
+    <input type="text" id="temp" inputmode="decimal" autocomplete="off" placeholder="e.g. 36.6" aria-describedby="err">
+    <p class="error" id="err" role="alert"></p>
+
+    <fieldset>
+      <legend>Convert from</legend>
+      <div class="units">
+        <input type="radio" name="unit" id="u-c" value="C" checked><label for="u-c">Celsius</label>
+        <input type="radio" name="unit" id="u-f" value="F"><label for="u-f">Fahrenheit</label>
+        <input type="radio" name="unit" id="u-k" value="K"><label for="u-k">Kelvin</label>
+      </div>
+    </fieldset>
+
+    <button type="submit" id="convert">Convert</button>
+  </form>
+
+  <section class="results" id="results" aria-live="polite">
+    <p class="empty">Enter a value and select Convert.</p>
+  </section>
+</main>
+
+<script>
+  const input = document.getElementById("temp");
+  const err = document.getElementById("err");
+  const results = document.getElementById("results");
+  const form = document.getElementById("form");
+
+  const NAMES = { C: "Celsius", F: "Fahrenheit", K: "Kelvin" };
+  const SYMBOL = { C: "°C", F: "°F", K: "K" };
+  const MINIMUM = { C: "−273.15 °C", F: "−459.67 °F", K: "0 K" };
+  const NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+
+  const unit = () => document.querySelector('input[name="unit"]:checked').value;
+
+  function toKelvin(v, u) {
+    if (u === "C") return v + 273.15;
+    if (u === "F") return (v - 32) * 5 / 9 + 273.15;
+    return v;
+  }
+  function fromKelvin(k, u) {
+    if (u === "C") return k - 273.15;
+    if (u === "F") return (k - 273.15) * 9 / 5 + 32;
+    return k;
+  }
+  function fmt(n) {
+    const s = (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, "");
+    return (s === "-0" ? "0" : s).replace("-", "−");
+  }
+
+  function showError(msg) {
+    err.textContent = msg;
+    err.classList.toggle("show", !!msg);
+    input.setAttribute("aria-invalid", msg ? "true" : "false");
+  }
+
+  // Returns a number, or null after showing an error.
+  function validate(liveOnly) {
+    const raw = input.value.trim().replace("−", "-");
+    if (raw === "") {
+      showError(liveOnly ? "" : "Enter a temperature to convert.");
+      return null;
+    }
+    if (!NUMBER.test(raw)) {
+      showError("Enter a number, such as 25 or -40.5. Letters and symbols aren't allowed.");
+      return null;
+    }
+    const v = parseFloat(raw);
+    const u = unit();
+    if (toKelvin(v, u) < -1e-9) {
+      showError("That is below absolute zero. The lowest possible " + NAMES[u] + " value is " + MINIMUM[u] + ".");
+      return null;
+    }
+    showError("");
+    return v;
+  }
+
+  function convert() {
+    const v = validate(false);
+    if (v === null) {
+      results.innerHTML = '<p class="empty">Enter a valid temperature to see results.</p>';
+      return;
+    }
+    const u = unit();
+    const k = toKelvin(v, u);
+    setMood(k);
+    const order = [u].concat(["C", "F", "K"].filter(x => x !== u));
+    results.innerHTML = order.map((x, i) =>
+      '<div class="row' + (i === 0 ? ' input' : '') + '">' +
+        '<span class="name">' + NAMES[x] + (i === 0 ? ' (input)' : '') + '</span>' +
+        '<span class="val">' + fmt(fromKelvin(k, x)) + ' ' + SYMBOL[x] + '</span>' +
+      '</div>'
+    ).join("");
+  }
+
+  // 3D background: floating, spinning cubes (positions in %, size in px, drift s, spin s)
+  const CUBES = [[6,12,70,9,14],[82,8,110,12,22],[14,62,120,10,26],[72,58,80,8,16],[44,80,60,11,18],[90,82,100,13,24],[30,22,50,9,12]];
+  const scene = document.getElementById("scene");
+  CUBES.forEach(([x, y, s, t, r]) => {
+    const d = document.createElement("div");
+    d.className = "drift";
+    d.style.cssText = "left:" + x + "%;top:" + y + "%;--t:" + t + "s";
+    d.innerHTML = '<div class="cube" style="--s:' + s + 'px;--r:' + r + 's">' + '<div class="face"></div>'.repeat(6) + "</div>";
+    scene.appendChild(d);
+  });
+  // Background colour follows the temperature: blue when cold, orange-red when hot.
+  function setMood(k) {
+    const c = Math.max(-20, Math.min(45, k - 273.15));
+    document.body.style.setProperty("--hue", Math.round(210 - (c + 20) / 65 * 195));
+  }
+
+  form.addEventListener("submit", e => { e.preventDefault(); convert(); });
+  document.getElementById("convert").addEventListener("click", e => { e.preventDefault(); convert(); });
+  input.addEventListener("input", () => validate(true));
+  document.querySelectorAll('input[name="unit"]').forEach(r =>
+    r.addEventListener("change", () => { if (input.value.trim() !== "") validate(true); })
+  );
+</script>
+</body>
+</html>
